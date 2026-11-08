@@ -35,9 +35,23 @@ def wait_ollama():
     sys.exit("ollama did not start")
 
 
+def install_ollama():
+    """ollama.com/install.sh sometimes returns HTTP 500; retry, then use the GitHub release binary."""
+    for _ in range(3):
+        if subprocess.run("curl -fsSL https://ollama.com/install.sh | sh", shell=True).returncode == 0:
+            return
+        time.sleep(5)
+    print("install.sh failed; installing from GitHub releases", flush=True)
+    base = "https://github.com/ollama/ollama/releases/latest/download"
+    if subprocess.run(f"curl -fL {base}/ollama-linux-amd64.tar.zst | tar --zstd -x -C /usr/local",
+                      shell=True).returncode != 0:
+        sh(f"curl -fL {base}/ollama-linux-amd64.tgz | tar -xz -C /usr/local")
+    sh("ollama --version")
+
+
 def main():
     sh("apt-get update -qq && apt-get install -y -qq zstd curl > /dev/null")
-    sh("curl -fsSL https://ollama.com/install.sh | sh")
+    install_ollama()
     subprocess.Popen(["ollama", "serve"], stdout=open("/tmp/ollama.log", "w"), stderr=subprocess.STDOUT)
     wait_ollama()
     sh("ollama pull phi3.5")

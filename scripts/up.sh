@@ -29,6 +29,8 @@ done
 export AWS_ACCESS_KEY_ID=$(kubectl -n data get secret s3-credentials -o jsonpath='{.data.access-key}' | base64 -d)
 export AWS_SECRET_ACCESS_KEY=$(kubectl -n data get secret s3-credentials -o jsonpath='{.data.secret-key}' | base64 -d)
 
+bash scripts/harden_cluster.sh
+
 echo "== 3/6 object storage (SeaweedFS, namespace data)"
 kubectl apply -f k8s/data/seaweedfs.yaml
 kubectl -n data rollout status deploy/seaweedfs --timeout=300s

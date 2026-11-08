@@ -3,7 +3,7 @@
 # Needs: docker, k3d, kubectl, python3 (with `pip install boto3`).
 set -euo pipefail
 cd "$(dirname "$0")/.."
-PY=${PYTHON:-python3}
+PY=${PYTHON:-$(command -v python3 || command -v python)}
 CLUSTER=cloud-sms
 
 echo "== 1/6 cluster"

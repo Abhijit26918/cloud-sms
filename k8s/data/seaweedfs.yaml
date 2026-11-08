@@ -31,7 +31,7 @@ spec:
         - name: seaweedfs
           image: chrislusf/seaweedfs:3.80
           args: ["server", "-dir=/data", "-volume.max=10", "-s3", "-s3.port=8333",
-                 "-s3.config=/etc/seaweedfs/s3.json", "-ip=seaweedfs"]
+                 "-s3.config=/etc/seaweedfs/s3.json"]
           ports:
             - {name: s3, containerPort: 8333}
             - {name: master, containerPort: 9333}

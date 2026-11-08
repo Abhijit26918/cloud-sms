@@ -13,14 +13,19 @@ kubectl wait --for=condition=Ready node --all --timeout=180s
 kubectl apply -f k8s/00-namespaces.yaml
 
 echo "== 2/6 secrets (generated now, never stored in Git)"
-if ! kubectl -n data get secret seaweedfs-s3-config >/dev/null 2>&1; then
+if kubectl -n data get secret s3-credentials >/dev/null 2>&1; then   # reuse the keys of an earlier run
+  AK=$(kubectl -n data get secret s3-credentials -o jsonpath='{.data.access-key}' | base64 -d)
+  SK=$(kubectl -n data get secret s3-credentials -o jsonpath='{.data.secret-key}' | base64 -d)
+else
   AK=$($PY -c "import secrets;print('AK'+secrets.token_hex(8))")
   SK=$($PY -c "import secrets;print(secrets.token_hex(20))")
-  kubectl -n data create secret generic seaweedfs-s3-config --from-literal=s3.json="{\"identities\":[{\"name\":\"project\",\"credentials\":[{\"accessKey\":\"$AK\",\"secretKey\":\"$SK\"}],\"actions\":[\"Admin\",\"Read\",\"Write\",\"List\"]}]}"
-  for ns in data pipeline app; do
-    kubectl -n "$ns" create secret generic s3-credentials --from-literal=access-key="$AK" --from-literal=secret-key="$SK"
-  done
 fi
+kubectl -n data get secret seaweedfs-s3-config >/dev/null 2>&1 || \
+  kubectl -n data create secret generic seaweedfs-s3-config --from-literal=s3.json="{\"identities\":[{\"name\":\"project\",\"credentials\":[{\"accessKey\":\"$AK\",\"secretKey\":\"$SK\"}],\"actions\":[\"Admin\",\"Read\",\"Write\",\"List\"]}]}"
+for ns in data pipeline app; do
+  kubectl -n "$ns" get secret s3-credentials >/dev/null 2>&1 || \
+    kubectl -n "$ns" create secret generic s3-credentials --from-literal=access-key="$AK" --from-literal=secret-key="$SK"
+done
 export AWS_ACCESS_KEY_ID=$(kubectl -n data get secret s3-credentials -o jsonpath='{.data.access-key}' | base64 -d)
 export AWS_SECRET_ACCESS_KEY=$(kubectl -n data get secret s3-credentials -o jsonpath='{.data.secret-key}' | base64 -d)
 

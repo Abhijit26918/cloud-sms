@@ -91,7 +91,9 @@ def load_model():
     try:
         print(f"loading model {MODEL_VERSION} from {MODEL_URI}", flush=True)
         download_model(MODEL_URI, MODEL_DIR)
-        state.model = TorchModel(MODEL_DIR)
+        model = TorchModel(MODEL_DIR)
+        model.generate("set an alarm for seven am")  # warm-up: the first call is several seconds slower
+        state.model = model
         state.load_seconds = round(time.time() - t0, 2)
         print(f"model ready in {state.load_seconds}s", flush=True)
     except Exception as e:  # keep the process alive; /readyz stays 503

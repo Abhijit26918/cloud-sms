@@ -11,3 +11,4 @@ models/v2/*
 .env
 *.pem
 kubeconfig*
+scripts/_run_training.ps1

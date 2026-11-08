@@ -18,7 +18,7 @@ import os
 import threading
 import time
 
-from fastapi import FastAPI, Response
+from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 

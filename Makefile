@@ -1,7 +1,7 @@
 PYTHON ?= python
 SUBSET ?=
 
-.PHONY: train test lint eval-local
+.PHONY: train test lint eval-local up down
 
 # Fine-tune the student. Reads only training/config.yaml.
 #   make train             full run (first 1500 records of datasets/v1/train.jsonl) -> models/v1, training/loss.csv
@@ -19,3 +19,10 @@ lint:
 eval-local:
 	$(PYTHON) training/predict.py --model $(MODEL) --out results/$(NAME)_predictions.jsonl
 	$(PYTHON) tools/score.py results/$(NAME)_predictions.jsonl data/validation.jsonl --out results/$(NAME).json
+
+# Build and deploy everything on a local k3d cluster / delete it again.
+up:
+	bash scripts/up.sh
+
+down:
+	bash scripts/down.sh

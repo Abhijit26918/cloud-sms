@@ -3,7 +3,7 @@ title: "Distilled Command Parser on a Local Kubernetes Cloud"
 subtitle: "Cloud Computing (CS3081) Mini Project Report"
 author: "Abhijit — Roll No. 230101031 — https://github.com/Abhijit26918/cloud-sms"
 geometry: margin=1.7cm
-fontsize: 9.5pt
+fontsize: 11pt
 colorlinks: true
 header-includes:
   - \usepackage{booktabs}
@@ -30,9 +30,10 @@ header-includes:
 
 | Input | (a) invalid JSON | (b) wrong keys | (c) bad intent | (d) slot not in command | Duplicates | **Kept** |
 |---:|---:|---:|---:|---:|---:|---:|
-| 3,000 | 310 | 0 | 5 | 525 | 31 | **2,129** (3000 = 310+0+5+525+31+2129) |
+| 3,000 | 310 | 0 | 5 | 525 | 31 | **2,129** |
 
-`datasets/v1/train.sha256` = `691d957871794e23b8b3dd4982544dfef24073c8e734323470d1eab01896486b`. The largest rejection group (17.5%) is (d): the teacher often wrote the *string* `"null"` for a missing slot, or paraphrased a slot (e.g. `7:30`), which rule (d) correctly rejects.
+Check: 3,000 = 310 + 0 + 5 + 525 + 31 + 2,129. The SHA-256 in `datasets/v1/train.sha256` is
+`691d957871794e23b8b3dd4982544dfef24073c8e734323470d1eab01896486b`. The largest rejection group (17.5%) is (d): the teacher often wrote the *string* `"null"` for a missing slot, or paraphrased a slot (e.g. `7:30`), which rule (d) correctly rejects.
 
 **Limitations.** Teacher labels are noisy (the teacher itself scores only 36% full-frame on validation). One SeaweedFS pod with a local-path volume has no replication. The pipeline Job was not executed in-cluster. **Improvements.** Run Ollama on a larger node and execute the Job for real; use constrained (JSON-grammar) decoding to avoid invalid replies; add a retry-on-invalid step in the worker.
 
@@ -72,7 +73,7 @@ header-includes:
 
 **An honest failure first.** My first rolling-update run [`results/attempt1_*`] was invalid: **14,071 of 14,328 requests failed**. Cause (from `kubectl describe`/logs): Traefik, CoreDNS and metrics-server had been restarted 10+ times, because their own health probes timed out while Windows memory pressure starved the node (host free RAM 0.4–0.7 GB, compressed memory 2 GB); every Traefik restart made port 8080 refuse connections. Fix: `scripts/harden_cluster.sh` gives those system pods long probe timeouts (10 s, 10 failures), and I relaxed the parser's own probes. The numbers below are from runs after the fix; the failed run is kept as evidence.
 
-| Experiment (all measured) | Result | Evidence |
+| Experiment (all measured) | Result | Evidence (in `results/`) |
 |---|---|---|
 | Rolling update v1→v2 under load, then `kubectl rollout undo`, then pod kill, in one 9-minute Locust run | 862 requests, **2 failed (0.23%)**, both HTTP 502 near the switch to v2; served by v1: 690, v2: 173 | `rolling_update_log.txt`, `rolling_load_*` |
 | Rollback | three probes after `undo` returned `X-Model-Version: v1`; Deployment env back to v1 | `rolling_update_log.txt` |
@@ -104,7 +105,9 @@ Method: allocate from the largest to the smallest from 10.20.0.0, using the smal
 
 **Implementation.** `make up` builds and deploys everything (cluster, secrets, SeaweedFS, buckets and uploads with models fetched from the GitHub Release and checksum-verified, images, application); `make down` deletes the cluster. `.github/workflows/ci.yml` has the required stages in order: `lint` (ruff), `unit-tests` (pytest, 8 tests), `evaluate` (downloads the model from the GitHub Release, verifies SHA-256, runs `training/predict.py` and `tools/score.py` on `validation.jsonl`) and `quality-gate` (`score.py --min-validity 95`), plus a `secret-scan` job (gitleaks) that reports nothing. A manual `workflow_dispatch` input selects the model.
 
-**Evidence (measured).** Passing run with the v1 Release asset (all five jobs green): https://github.com/Abhijit26918/cloud-sms/actions/runs/42535342580. Deliberately failing run with the untrained pythia-70m (`model=base`), which fails at the quality gate because its JSON validity is 0%: https://github.com/Abhijit26918/cloud-sms/actions/runs/42536825922. `AI_USE.md` lists the AI tools used, for what, and how I checked the output.
+**Fresh-clone check (measured).** After `make down` (10 s, cluster deleted) I cloned the repository from GitHub into an empty folder and ran `make up`: it completed in **18 min 55 s** (this includes downloading and checksum-verifying both models from the Releases and building both images) and a request through the Ingress returned the correct JSON [`results/fresh_clone_make_up.log`, `results/make_down.log`]. On Windows I set `PYTHON` to an interpreter that has `boto3`; the prerequisites are Docker, k3d, kubectl, make and `pip install boto3`.
+
+**Evidence (measured).** Passing run with the v1 Release asset (all five jobs green): <https://github.com/Abhijit26918/cloud-sms/actions/runs/42535342580>. Deliberately failing run with the untrained pythia-70m (`model=base`); lint, tests and evaluation pass but the **quality gate fails** because its JSON validity is 0%: <https://github.com/Abhijit26918/cloud-sms/actions/runs/42536825922>. `AI_USE.md` lists the AI tools used, for what, and how I checked the output.
 
 **Limitations and improvements.** The evaluation job uses CPU runners and takes a few minutes; the CI never deploys to Kubernetes (no cluster in CI). A kind/k3d cluster in the workflow and caching of the PyTorch wheel would make it a full CD pipeline.
 

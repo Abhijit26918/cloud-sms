@@ -36,6 +36,8 @@ git clone https://github.com/Abhijit26918/cloud-sms.git && cd cloud-sms
 pip install boto3
 make up
 ```
+(Measured on a fresh clone: 18 min 55 s, including model downloads and image builds. On Windows run it from Git Bash and, if `python3` is not found, set `PYTHON` to an interpreter that has `boto3`, e.g. `PYTHON=python make up`.)
+
 `make up` creates the k3d cluster, generates the S3 Secret at deploy time, starts SeaweedFS (namespace `data`), creates the
 buckets `datasets` and `models` and uploads the data and the two models (downloaded from the GitHub Release and
 checksum-verified), builds the images, and deploys the service (namespace `app`) behind Traefik on `http://localhost:8080`.

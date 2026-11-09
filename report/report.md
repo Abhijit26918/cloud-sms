@@ -1,7 +1,7 @@
 ---
 title: "Distilled Command Parser on a Local Kubernetes Cloud"
 subtitle: "Cloud Computing (CS3081) Mini Project Report"
-author: "Abhijit — Roll No. 230101031 — https://github.com/Abhijit26918/cloud-sms"
+author: "Abhijit Kumar — Roll No. 230101031 — https://github.com/Abhijit26918/cloud-sms"
 geometry: margin=1.7cm
 fontsize: 11pt
 colorlinks: true
@@ -22,7 +22,7 @@ header-includes:
 
 **Teacher and prompt.** Phi-3.5-mini (`phi3.5`, Ollama 0.40.15, 2.2 GB), temperature 0, seed 42, `num_predict` 120. `prompts/teacher_prompt.txt` states the schema, the eight intents and the three slot rules, and gives eight worked examples (taken from the brief, not from the validation set). Replies are stored exactly as returned (`teacher_raw`), never edited.
 
-**Deviation (measured fact, not hidden).** Labelling 3,000 commands on this CPU laptop was estimated at several hours and would not fit next to the cluster in 7.7 GB of RAM. I therefore ran the *same* `worker/worker.py`, prompt and settings on Kaggle's free GPU (`kaggle/label_on_kaggle.py`): about 0.5 s per command, 3,000 + 100 validation commands in roughly 25 minutes. The raw shards were copied into the repository and uploaded to the `datasets` bucket by `scripts/seed_storage.py`. **The in-cluster Ollama deployment and the `pipeline` Job manifest (`k8s/pipeline/teacher.yaml`) were written but not run for the full data set:** an Ollama pod needs about 3 GB, which the 3.65 GiB node cannot give while the app runs. See "Limitations".
+**Deviation (measured fact, not hidden).** Labelling 3,000 commands on this CPU laptop was estimated at several hours and would not fit next to the cluster in 7.7 GB of RAM. I therefore ran the *same* `worker/worker.py`, prompt and settings on Kaggle's free GPU (`kaggle/label_on_kaggle.py`): about 0.5 s per command, 3,000 + 100 validation commands in roughly 25 minutes. The raw shards were copied into the repository and uploaded to the `datasets` bucket by `scripts/seed_storage.py`. **The in-cluster Ollama deployment and the `pipeline` Job manifest (`k8s/pipeline/teacher-workers.yaml`) were written but not run for the full data set:** an Ollama pod needs about 3 GB, which the 3.65 GiB node cannot give while the app runs. See "Limitations".
 
 **Sharding (explanation).** Worker `i` of `SHARD_COUNT = 2` takes exactly the commands whose 0-based line number `n` satisfies `n mod 2 = i`, so shard 0 gets the even lines and shard 1 the odd lines, 1,500 commands each. The rule needs no coordination, is deterministic and has no gaps or overlaps by construction. I checked it on the real output: the 3,000 ids across both shard files are unique and equal to the pool ids (every id in exactly one shard). Each worker writes its own object (`shard-N.jsonl`) and flushes every 25 records, so a restarted pod resumes instead of starting over. `clean.py` sorts by id, so the result and its checksum do not depend on the number of shards.
 

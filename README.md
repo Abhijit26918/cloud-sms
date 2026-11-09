@@ -61,7 +61,7 @@ make train                                                          # models/v1,
 python training/train.py --version v2 --seed 7 --epochs 6           # models/v2, training/loss_v2.csv
 make eval-local MODEL=models/v1 NAME=student_v1                     # score on validation.jsonl
 ```
-Teacher labelling in the cluster: `kubectl apply -f k8s/pipeline/teacher.yaml` (two workers with `SHARD_INDEX` 0 and 1).
+Teacher labelling in the cluster: `kubectl apply -f k8s/pipeline/teacher-workers.yaml` (two workers with `SHARD_INDEX` 0 and 1).
 
 ## Shut down
 ```

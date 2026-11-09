@@ -22,7 +22,13 @@ header-includes:
 
 **Teacher and prompt.** Phi-3.5-mini (`phi3.5`, Ollama 0.40.15, 2.2 GB), temperature 0, seed 42, `num_predict` 120. `prompts/teacher_prompt.txt` states the schema, the eight intents and the three slot rules, and gives eight worked examples (taken from the brief, not from the validation set). Replies are stored exactly as returned (`teacher_raw`), never edited.
 
-**Deviation (measured fact, not hidden).** Labelling 3,000 commands on this CPU laptop was estimated at several hours and would not fit next to the cluster in 7.7 GB of RAM. I therefore ran the *same* `worker/worker.py`, prompt and settings on Kaggle's free GPU (`kaggle/label_on_kaggle.py`): about 0.5 s per command, 3,000 + 100 validation commands in roughly 25 minutes. The raw shards were copied into the repository and uploaded to the `datasets` bucket by `scripts/seed_storage.py`. **The in-cluster Ollama deployment and the `pipeline` Job manifest (`k8s/pipeline/teacher-workers.yaml`) were written but not run for the full data set:** an Ollama pod needs about 3 GB, which the 3.65 GiB node cannot give while the app runs. See "Limitations".
+**Deviation (measured fact, not hidden).** Labelling 3,000 commands on this CPU laptop was estimated at several hours and would not fit next to the cluster in 7.7 GB of RAM. I therefore ran the *same* `worker/worker.py`, prompt and settings on Kaggle's free GPU (`kaggle/label_on_kaggle.py`): about 0.5 s per command, 3,000 + 100 validation commands in roughly 25 minutes. The raw shards were copied into the repository and uploaded to the `datasets` bucket by `scripts/seed_storage.py`. The in-cluster pipeline was run only as a short demonstration (next paragraph).
+
+**In-cluster workers (measured, demonstration only).** In namespace `pipeline`, an Indexed Job (`k8s/pipeline/teacher-workers.yaml`, image `teacher-worker:1.0`) ran two pods at the same time with `SHARD_INDEX` 0 and 1 and `SHARD_COUNT` 2. Their teacher was Ollama 0.40.15 with `phi3.5` (same digest `61819fb370a3` as on Kaggle) running on the laptop CPU, reached from the pods at `host.docker.internal:11434`: an Ollama *pod* needs about 3 GB, which the 3.65 GiB node cannot spare next to the application, and the brief allows the teacher on the laptop. To keep it short, `LIMIT=5` made each worker label only its first 5 commands. Each worker wrote its own object, `datasets/teacher-incluster/shard-0.jsonl` and `shard-1.jsonl` [`results/pipeline_demo/`]. The full 3,000 labels in `datasets/teacher/` are the Kaggle ones.
+
+**Reproducibility finding (measured).** For the same 10 commands the laptop replies were byte-identical to Kaggle's in only **1 of 10** cases, although model digest, Ollama version, prompt, temperature 0 and seed 42 were the same: the CPU replies often kept generating after the JSON (`
+
+Command: ...`), and 3 of 10 differed in an intent or slot (e.g. C0003 `calendar_set` against `calendar_query`) [`results/pipeline_demo/comparison_with_kaggle.txt`]. So teacher output depends on the hardware; this is why the raw replies and the checksum of the cleaned file are what I treat as the fixed input, and `clean.py` rejects replies with trailing text under rule (a).
 
 **Sharding (explanation).** Worker `i` of `SHARD_COUNT = 2` takes exactly the commands whose 0-based line number `n` satisfies `n mod 2 = i`, so shard 0 gets the even lines and shard 1 the odd lines, 1,500 commands each. The rule needs no coordination, is deterministic and has no gaps or overlaps by construction. I checked it on the real output: the 3,000 ids across both shard files are unique and equal to the pool ids (every id in exactly one shard). Each worker writes its own object (`shard-N.jsonl`) and flushes every 25 records, so a restarted pod resumes instead of starting over. `clean.py` sorts by id, so the result and its checksum do not depend on the number of shards.
 
@@ -35,7 +41,7 @@ header-includes:
 Check: 3,000 = 310 + 0 + 5 + 525 + 31 + 2,129. The SHA-256 in `datasets/v1/train.sha256` is
 `691d957871794e23b8b3dd4982544dfef24073c8e734323470d1eab01896486b`. The largest rejection group (17.5%) is (d): the teacher often wrote the *string* `"null"` for a missing slot, or paraphrased a slot (e.g. `7:30`), which rule (d) correctly rejects.
 
-**Limitations.** Teacher labels are noisy (the teacher itself scores only 36% full-frame on validation). One SeaweedFS pod with a local-path volume has no replication. The pipeline Job was not executed in-cluster. **Improvements.** Run Ollama on a larger node and execute the Job for real; use constrained (JSON-grammar) decoding to avoid invalid replies; add a retry-on-invalid step in the worker.
+**Limitations.** Teacher labels are noisy (the teacher itself scores only 36% full-frame on validation). One SeaweedFS pod with a local-path volume has no replication. The in-cluster Job labelled only 10 commands, not the whole set. **Improvements.** Run Ollama on a larger node and execute the Job for the full set; use constrained (JSON-grammar) decoding to avoid invalid replies; add a retry-on-invalid step in the worker.
 
 # Task 2 — Training the student (sequence-level distillation)
 
@@ -140,6 +146,6 @@ Method: allocate from the largest to the smallest from 10.20.0.0, using the smal
 
 # Reflection (short) and references
 
-Main lessons: distillation is cheap when the format is narrow; most of the engineering effort went into making a heavy workload survive a small machine (probes, memory, honest measurement). Things I would do differently: start with more node memory, and run the in-cluster teacher Job.
+Main lessons: distillation is cheap when the format is narrow; most of the engineering effort went into making a heavy workload survive a small machine (probes, memory, honest measurement). Things I would do differently: start with more node memory, and run the whole teacher Job in the cluster.
 
 **References.** Kim & Rush, *Sequence-Level Knowledge Distillation*, EMNLP 2016. Bastianelli et al., *SLURP*, EMNLP 2020 (CC BY 4.0). EleutherAI pythia-70m model card. Kubernetes, k3d, SeaweedFS, Traefik, Locust and gitleaks documentation. Phi-3.5-mini via Ollama.
